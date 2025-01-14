@@ -38,6 +38,7 @@ export default function Navbar() {
           <Link href="/verify">
             <Button variant="ghost" className="hover:bg-primary/10">Verify Document</Button>
           </Link>
+          
           <Button
             variant="ghost"
             size="icon"
