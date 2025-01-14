@@ -2,18 +2,21 @@
 
 import { useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload } from "lucide-react";
+import { Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { ethers } from "ethers";
+import { Dashboard } from "@/components/Dashboard";
 
-export default function UploadPage() {
+export default function VerifyPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [documentName, setDocumentName] = useState("");
+  const [hash, setHash] = useState("");
   const [loading, setLoading] = useState(false);
+  const [hashes, setHashes] = useState<string[]>([]);
   const { toast } = useToast();
 
   const onDrop = (acceptedFiles: File[]) => {
@@ -32,11 +35,11 @@ export default function UploadPage() {
     return hash;
   };
 
-  const handleUpload = async () => {
-    if (!file || !documentName) {
+  const verifyByFile = async () => {
+    if (!file) {
       toast({
         title: "Error",
-        description: "Please provide both a document name and file",
+        description: "Please upload a file",
         variant: "destructive",
       });
       return;
@@ -44,19 +47,16 @@ export default function UploadPage() {
 
     try {
       setLoading(true);
-      const hash = await generateHash(file);
-      
+      const generatedHash = await generateHash(file);
+      setHashes((prevHashes) => [...prevHashes, generatedHash]);
       toast({
         title: "Success",
-        description: `Document hash generated: ${hash.slice(0, 10)}...`,
+        description: `Document hash generated: ${generatedHash.slice(0, 10)}...`,
       });
-      
-      setFile(null);
-      setDocumentName("");
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to process document",
+        description: "Failed to generate hash",
         variant: "destructive",
       });
     } finally {
@@ -64,52 +64,119 @@ export default function UploadPage() {
     }
   };
 
+  const verifyByHash = async () => {
+    if (!hash) {
+      toast({
+        title: "Error",
+        description: "Please enter a hash",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Assuming you have a function to verify the hash
+      const isValid = await verifyHash(hash);
+      if (isValid) {
+        toast({
+          title: "Success",
+          description: "Document hash is valid",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Document hash is invalid",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to verify hash",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Dummy function to simulate hash verification
+  const verifyHash = async (hash: string): Promise<boolean> => {
+    // Replace with actual verification logic
+    return new Promise((resolve) => setTimeout(() => resolve(true), 1000));
+  };
   return (
     <div className="container mx-auto px-4 py-16">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Upload Document</h1>
+        <h1 className="text-3xl font-bold mb-8">Verify Document</h1>
         
-        <Card className="p-6">
-          <div className="space-y-6">
-            <div>
-              <Label htmlFor="documentName">Document Name</Label>
-              <Input
-                id="documentName"
-                value={documentName}
-                onChange={(e) => setDocumentName(e.target.value)}
-                placeholder="Enter document name"
-              />
-            </div>
+        <Tabs defaultValue="file">
+          <TabsList className="grid w-full grid-cols-2 mb-8">
+            <TabsTrigger value="file">Verify by File</TabsTrigger>
+            <TabsTrigger value="hash">Verify by Hash</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="file">
+            <Card className="p-6">
+              <div className="space-y-6">
+                <div>
+                  <Label>Upload Document</Label>
+                  <div
+                    {...getRootProps()}
+                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+                      ${isDragActive ? "border-primary" : "border-border"}
+                      ${file ? "bg-muted" : ""}`}
+                  >
+                    <input {...getInputProps()} />
+                    <Upload className="mx-auto h-12 w-12 mb-4 text-muted-foreground" />
+                    {file ? (
+                      <p>{file.name}</p>
+                    ) : isDragActive ? (
+                      <p>Drop the file here</p>
+                    ) : (
+                      <p>Drag and drop a file here, or click to select</p>
+                    )}
+                  </div>
+                </div>
 
-            <div>
-              <Label>Document File</Label>
-              <div
-                {...getRootProps()}
-                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-                  ${isDragActive ? "border-primary" : "border-border"}
-                  ${file ? "bg-muted" : ""}`}
-              >
-                <input {...getInputProps()} />
-                <Upload className="mx-auto h-12 w-12 mb-4 text-muted-foreground" />
-                {file ? (
-                  <p>{file.name}</p>
-                ) : isDragActive ? (
-                  <p>Drop the file here</p>
-                ) : (
-                  <p>Drag and drop a file here, or click to select</p>
-                )}
+                <Button
+                  onClick={verifyByFile}
+                  disabled={loading || !file}
+                  className="w-full"
+                >
+                  {loading ? "Verifying..." : "Verify Document"}
+                </Button>
               </div>
-            </div>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="hash">
+            <Card className="p-6">
+              <div className="space-y-6">
+                <div>
+                  <Label htmlFor="hash">Document Hash</Label>
+                  <Input
+                    id="hash"
+                    value={hash}
+                    onChange={(e) => setHash(e.target.value)}
+                    placeholder="Enter document hash"
+                  />
+                </div>
 
-            <Button
-              onClick={handleUpload}
-              disabled={loading || !file || !documentName}
-              className="w-full"
-            >
-              {loading ? "Processing..." : "Upload Document"}
-            </Button>
-          </div>
-        </Card>
+                <Button
+                  onClick={verifyByHash}
+                  disabled={loading || !hash}
+                  className="w-full"
+                >
+                  {loading ? "Verifying..." : "Verify Hash"}
+                </Button>
+              </div>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <Dashboard hashes={hashes} />
       </div>
     </div>
   );
