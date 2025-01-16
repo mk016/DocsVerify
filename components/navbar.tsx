@@ -4,6 +4,7 @@ import { FileText, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { Button } from "./ui/button";
+
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 
@@ -32,6 +33,9 @@ export default function Navbar() {
         </Link>
         
         <div className="ml-auto flex items-center space-x-4">
+          <Link href="/dashboard">
+            <Button variant="ghost" className="hover:bg-primary/10">Dashboard</Button>
+          </Link>
           <Link href="/upload">
             <Button variant="ghost" className="hover:bg-primary/10">Upload Document</Button>
           </Link>
