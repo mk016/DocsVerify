@@ -8,30 +8,14 @@ import { Button } from '@/components/ui/button';
 import { FileText, History, Copy, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Document } from '@/components/Dashboard/page';
+import { useDocuments } from '@/contexts/DocumentContext';
 
 export default function DashboardPage() {
-  const [documents, setDocuments] = useState<Document[]>([]);
+  const { documents } = useDocuments();
   const [showHistory, setShowHistory] = React.useState(false);
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
   const [selectedDoc, setSelectedDoc] = React.useState<Document | null>(null);
   const { toast } = useToast();
-
-  useEffect(() => {
-    const savedDocs = localStorage.getItem('documents');
-    if (savedDocs) {
-      try {
-        const parsedDocs = JSON.parse(savedDocs);
-        const validDocs = parsedDocs.map((doc: any) => ({
-          ...doc,
-          status: doc.status === 'verified' ? 'verified' : 'unverified'
-        })) as Document[];
-        setDocuments(validDocs);
-      } catch (error) {
-        console.error('Error loading documents:', error);
-        setDocuments([]);
-      }
-    }
-  }, []);
 
   const copyToClipboard = async (text: string) => {
     try {
