@@ -11,37 +11,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { ethers } from "ethers";
 import type { Document } from "@/components/Dashboard/page";
+import { useDocuments } from '@/contexts/DocumentContext';
 
 export default function VerifyPage() {
+  const { documents, addFileToDocument } = useDocuments();
   const [file, setFile] = useState<File | null>(null);
   const [existingHash, setExistingHash] = useState("");
   const [loading, setLoading] = useState(false);
-  const [documents, setDocuments] = useState<Document[]>([]);
   const [generatedHash, setGeneratedHash] = useState<string>("");
   const { toast } = useToast();
-
-  // Load documents from localStorage on component mount
-  useEffect(() => {
-    const savedDocs = localStorage.getItem('documents');
-    if (savedDocs) {
-      try {
-        const parsedDocs = JSON.parse(savedDocs);
-        const validDocs = parsedDocs.map((doc: any) => ({
-          ...doc,
-          status: doc.status === 'verified' ? 'verified' : 'unverified'
-        })) as Document[];
-        setDocuments(validDocs);
-      } catch (error) {
-        console.error('Error loading documents:', error);
-        setDocuments([]);
-      }
-    }
-  }, []);
-
-  // Save documents to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('documents', JSON.stringify(documents));
-  }, [documents]);
 
   const onDrop = (acceptedFiles: File[]) => {
     setFile(acceptedFiles[0]);
@@ -88,7 +66,7 @@ export default function VerifyPage() {
         }]
       };
       
-      setDocuments(prev => [...prev, newDocument]);
+      addDocument(newDocument);
       toast({
         title: "Success",
         description: "New hash generated and saved",
@@ -132,18 +110,7 @@ export default function VerifyPage() {
         uploadedAt: new Date().toISOString()
       };
 
-      const updatedDocs = documents.map(doc => {
-        if (doc.hash === existingHash) {
-          return {
-            ...doc,
-            files: [...doc.files, newFile],
-            status: 'verified'
-          };
-        }
-        return doc;
-      });
-
-      setDocuments(updatedDocs);
+      addFileToDocument(existingHash, newFile);
       toast({
         title: "Success",
         description: "File added to existing hash",
