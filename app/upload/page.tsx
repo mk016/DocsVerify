@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { Search, Upload } from "lucide-react";
+import { Search, Upload, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,17 +10,42 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { ethers } from "ethers";
-import { Dashboard } from "@/components/Dashboard";
+import type { Document } from "@/components/Dashboard/page";
 
 export default function VerifyPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [hash, setHash] = useState("");
+  const [existingHash, setExistingHash] = useState("");
   const [loading, setLoading] = useState(false);
-  const [hashes, setHashes] = useState<string[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [generatedHash, setGeneratedHash] = useState<string>("");
   const { toast } = useToast();
+
+  // Load documents from localStorage on component mount
+  useEffect(() => {
+    const savedDocs = localStorage.getItem('documents');
+    if (savedDocs) {
+      try {
+        const parsedDocs = JSON.parse(savedDocs);
+        const validDocs = parsedDocs.map((doc: any) => ({
+          ...doc,
+          status: doc.status === 'verified' ? 'verified' : 'unverified'
+        })) as Document[];
+        setDocuments(validDocs);
+      } catch (error) {
+        console.error('Error loading documents:', error);
+        setDocuments([]);
+      }
+    }
+  }, []);
+
+  // Save documents to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('documents', JSON.stringify(documents));
+  }, [documents]);
 
   const onDrop = (acceptedFiles: File[]) => {
     setFile(acceptedFiles[0]);
+    setGeneratedHash(""); // Reset hash when new file is dropped
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -35,7 +60,7 @@ export default function VerifyPage() {
     return hash;
   };
 
-  const verifyByFile = async () => {
+  const createNewHash = async () => {
     if (!file) {
       toast({
         title: "Error",
@@ -47,11 +72,26 @@ export default function VerifyPage() {
 
     try {
       setLoading(true);
-      const generatedHash = await generateHash(file);
-      setHashes((prevHashes) => [...prevHashes, generatedHash]);
+      const hash = await generateHash(file);
+      setGeneratedHash(hash);
+
+      const newDocument: Document = {
+        id: Math.random().toString(),
+        hash: hash,
+        fileName: file.name,
+        uploadDate: new Date().toISOString(),
+        status: 'unverified',
+        files: [{
+          name: file.name,
+          size: `${Math.round(file.size / 1024)}KB`,
+          uploadedAt: new Date().toISOString()
+        }]
+      };
+      
+      setDocuments(prev => [...prev, newDocument]);
       toast({
         title: "Success",
-        description: `Document hash generated: ${generatedHash.slice(0, 10)}...`,
+        description: "New hash generated and saved",
       });
     } catch (error) {
       toast({
@@ -64,11 +104,21 @@ export default function VerifyPage() {
     }
   };
 
-  const verifyByHash = async () => {
-    if (!hash) {
+  const addToExistingHash = async () => {
+    if (!file || !existingHash) {
       toast({
         title: "Error",
-        description: "Please enter a hash",
+        description: "Please provide both file and hash",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const existingDoc = documents.find(doc => doc.hash === existingHash);
+    if (!existingDoc) {
+      toast({
+        title: "Error",
+        description: "Hash not found in system",
         variant: "destructive",
       });
       return;
@@ -76,58 +126,108 @@ export default function VerifyPage() {
 
     try {
       setLoading(true);
-      // Assuming you have a function to verify the hash
-      const isValid = await verifyHash(hash);
-      if (isValid) {
-        toast({
-          title: "Success",
-          description: "Document hash is valid",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Document hash is invalid",
-          variant: "destructive",
-        });
-      }
+      const newFile = {
+        name: file.name,
+        size: `${Math.round(file.size / 1024)}KB`,
+        uploadedAt: new Date().toISOString()
+      };
+
+      const updatedDocs = documents.map(doc => {
+        if (doc.hash === existingHash) {
+          return {
+            ...doc,
+            files: [...doc.files, newFile],
+            status: 'verified'
+          };
+        }
+        return doc;
+      });
+
+      setDocuments(updatedDocs);
+      toast({
+        title: "Success",
+        description: "File added to existing hash",
+      });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to verify hash",
+        description: "Failed to add file",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+      setFile(null);
+      setExistingHash("");
     }
   };
 
-  // Dummy function to simulate hash verification
-  const verifyHash = async (hash: string): Promise<boolean> => {
-    // Replace with actual verification logic
-    return new Promise((resolve) => setTimeout(() => resolve(true), 1000));
-  };
   return (
     <div className="container mx-auto px-4 py-16">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Verify Document</h1>
+        <h1 className="text-3xl font-bold mb-8">Upload Document</h1>
         
-        <Tabs defaultValue="file">
+        <Tabs defaultValue="new">
           <TabsList className="grid w-full grid-cols-2 mb-8">
-            <TabsTrigger value="file">Verify by File</TabsTrigger>
-            <TabsTrigger value="hash">Verify by Hash</TabsTrigger>
+            <TabsTrigger value="new">Create New Hash</TabsTrigger>
+            <TabsTrigger value="existing">Add to Existing Hash</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="file">
+          <TabsContent value="new">
             <Card className="p-6">
               <div className="space-y-6">
                 <div>
                   <Label>Upload Document</Label>
-                  <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-                      ${isDragActive ? "border-primary" : "border-border"}
-                      ${file ? "bg-muted" : ""}`}
-                  >
+                  <div {...getRootProps()} className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+                    ${isDragActive ? "border-primary" : "border-border"}
+                    ${file ? "bg-muted" : ""}`}>
+                    <input {...getInputProps()} />
+                    <Upload className="mx-auto h-12 w-12 mb-4 text-muted-foreground" />
+                    {file ? (
+                      <p>{file.name}</p>
+                    ) : isDragActive ? (
+                      <p>Drop the file here</p>
+                    ) : (
+                      <p>Drag and drop a file here, or click to select</p>
+                    )}
+                  </div>
+                </div>
+
+                {generatedHash && (
+                  <div className="p-4 bg-muted rounded-lg">
+                    <Label>Generated Hash:</Label>
+                    <div className="font-mono text-sm break-all">{generatedHash}</div>
+                  </div>
+                )}
+
+                <Button
+                  onClick={createNewHash}
+                  disabled={loading || !file}
+                  className="w-full"
+                >
+                  {loading ? "Generating..." : "Generate New Hash"}
+                </Button>
+              </div>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="existing">
+            <Card className="p-6">
+              <div className="space-y-6">
+                <div>
+                  <Label>Existing Hash</Label>
+                  <Input
+                    value={existingHash}
+                    onChange={(e) => setExistingHash(e.target.value)}
+                    placeholder="Enter existing hash"
+                    className="font-mono"
+                  />
+                </div>
+
+                <div>
+                  <Label>Upload Additional Document</Label>
+                  <div {...getRootProps()} className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+                    ${isDragActive ? "border-primary" : "border-border"}
+                    ${file ? "bg-muted" : ""}`}>
                     <input {...getInputProps()} />
                     <Upload className="mx-auto h-12 w-12 mb-4 text-muted-foreground" />
                     {file ? (
@@ -141,42 +241,16 @@ export default function VerifyPage() {
                 </div>
 
                 <Button
-                  onClick={verifyByFile}
-                  disabled={loading || !file}
+                  onClick={addToExistingHash}
+                  disabled={loading || !file || !existingHash}
                   className="w-full"
                 >
-                  {loading ? "Verifying..." : "Verify Document"}
-                </Button>
-              </div>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="hash">
-            <Card className="p-6">
-              <div className="space-y-6">
-                <div>
-                  <Label htmlFor="hash">Document Hash</Label>
-                  <Input
-                    id="hash"
-                    value={hash}
-                    onChange={(e) => setHash(e.target.value)}
-                    placeholder="Enter document hash"
-                  />
-                </div>
-
-                <Button
-                  onClick={verifyByHash}
-                  disabled={loading || !hash}
-                  className="w-full"
-                >
-                  {loading ? "Verifying..." : "Verify Hash"}
+                  {loading ? "Adding..." : "Add to Existing Hash"}
                 </Button>
               </div>
             </Card>
           </TabsContent>
         </Tabs>
-
-        <Dashboard hashes={hashes} />
       </div>
     </div>
   );
