@@ -20,8 +20,8 @@ DocsVerify is a decentralized document verification system that securely stores 
 
 ### Clone the Repository
 ```sh
-git clone https://github.com/mk016/docsverify.git
-cd docsverify
+git clone https://github.com/mk016/DocsVerify.git
+cd Docsverify
 ```
 
 ### Install Dependencies
@@ -31,7 +31,7 @@ npm install
 
 ### Run the Application
 ```sh
-npm start
+npm run dev
 ```
 
 ## Usage
